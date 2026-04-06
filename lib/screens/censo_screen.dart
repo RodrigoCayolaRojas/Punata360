@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CensoTransporteScreen extends StatefulWidget {
   const CensoTransporteScreen({super.key});
@@ -38,28 +39,42 @@ class _CensoTransporteScreenState extends State<CensoTransporteScreen> {
     }
   }
 
-  void _guardarEnBaseDeDatos() {
-    if (_nombreController.text.isEmpty || _latitud == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falta nombre o ubicación'), backgroundColor: Colors.orange));
-      return;
-    }
-    final datosAguardar = {
+
+
+  void _guardarEnBaseDeDatos() async {
+  if (_nombreController.text.isEmpty || _latitud == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Falta nombre o ubicación'), backgroundColor: Colors.orange)
+    );
+    return;
+  }
+
+  try {
+    // Referencia a la colección "paradas" en Firestore
+    await FirebaseFirestore.instance.collection('paradas').add({
       'nombre': _nombreController.text,
       'tipo': _tipoSeleccionado,
-      'ubicacion': {'latitud': _latitud, 'longitud': _longitud},
-      'fechaRegistro': DateTime.now().toString(),
-    };
-    print("=== LISTO PARA ENVIAR A BD ===");
-    print(datosAguardar);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datos guardados localmente'), backgroundColor: Colors.blue));
-    
-    // Limpiar formulario para el siguiente registro
+      'geopoint': GeoPoint(_latitud!, _longitud!), // Formato nativo de Firestore para mapas
+      'fechaRegistro': FieldValue.serverTimestamp(), // Usa la hora del servidor
+      'categoria': 'Transporte', // Siguiendo tu enfoque de transporte, comida y turismo
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('¡Línea guardada en la nube!'), backgroundColor: Colors.green)
+    );
+
+    // Limpiar formulario
     _nombreController.clear();
     setState(() {
       _latitud = null;
       _longitud = null;
     });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red)
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {

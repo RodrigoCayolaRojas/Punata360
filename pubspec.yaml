@@ -1,5 +1,5 @@
-name: punata_tours
-description: "A new Flutter project."
+name: punata360
+description: "Punata 360: ¡Tu municipio en un solo lugar! 🍎📱 Digitalizamos el transporte, la comida y el turismo para que locales y turistas encuentren todo al toque. Una herramienta fácil para que nuestros negocios crezcan y nadie se pierda lo mejor de Punata. Hecha con Flutter para ser rápida, útil y para todos. ¡Nuestra tierra a un clic! 🚀"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_core: ^3.0.0      # Plugin base de Firebase
+  cloud_firestore: ^5.0.0    # Para la base de datos NoSQL
   flutter_map: ^6.1.0   # El mapa libre
   latlong2: ^0.9.0      # Para las coordenadas latitud/longitud
   geolocator: ^11.0.0  # <--- NUEVO: Para obtener el GPS

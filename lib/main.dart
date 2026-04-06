@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'screens/login_screen.dart'; 
-
-void main() {
+import 'package:firebase_core/firebase_core.dart'; // Importar
+import 'package:flutter/material.dart';
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Inicializar Firebase
   runApp(const PunataApp());
 }
 
