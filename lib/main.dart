@@ -4,7 +4,6 @@ import 'package:latlong2/latlong.dart';
 import 'screens/login_screen.dart'; 
 import 'package:firebase_core/firebase_core.dart'; // Importar
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(); // Inicializar Firebase
@@ -41,48 +40,11 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
 
   List<Marker> _marcadores = [];
   List<Polyline> _rutas = [];
-@override
+
+  @override
   void initState() {
     super.initState();
-    _escucharParadasDesdeFirebase(); // Cambiamos la función
-  }
-
-  // NUEVA FUNCIÓN: Escucha la base de datos en tiempo real
-  void _escucharParadasDesdeFirebase() {
-    // Escuchamos la colección 'paradas'
-    FirebaseFirestore.instance.collection('paradas').snapshots().listen((snapshot) {
-      List<Marker> nuevosMarcadores = [];
-
-      // Recorremos cada documento guardado en la nube
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        
-        // Verificamos que el documento tenga la ubicación guardada
-        if (data.containsKey('geopoint') && data['geopoint'] != null) {
-          GeoPoint geo = data['geopoint'];
-          
-          nuevosMarcadores.add(
-            Marker(
-              point: LatLng(geo.latitude, geo.longitude),
-              width: 40,
-              height: 40,
-              // Le ponemos un icono diferente si es Taxi o Bus
-              child: Icon(
-                data['tipo'] == 'Taxi Local' ? Icons.local_taxi : Icons.directions_bus, 
-                color: Colors.blueAccent, 
-                size: 40
-              ),
-            ),
-          );
-        }
-      }
-
-      // Actualizamos el mapa
-      setState(() {
-        _marcadores = nuevosMarcadores;
-        // Opcional: _rutas = []; (Si luego quieres cargar rutas dinámicas)
-      });
-    });
+    _cargarDatosMVP();
   }
 
   void _cargarDatosMVP() {
@@ -127,13 +89,13 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
               initialCenter: punataCentro,
               initialZoom: 15.0,
             ),
-            children: [
+          children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.tuempresa.punataapp',
               ),
-              if (categoriaActiva == 'Transporte') PolylineLayer(polylines: _rutas),
-              if (categoriaActiva == 'Transporte') MarkerLayer(markers: _marcadores),
+              PolylineLayer(polylines: _rutas), // Mostramos rutas si hay
+              MarkerLayer(markers: _marcadores), // Siempre mostramos los marcadores activos
             ],
           ),
 
@@ -141,6 +103,7 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
           // 2. NUEVA BARRA SUPERIOR (Buscador + Perfil)
           // =========================================================
           Positioned(
+         
             top: 50,
             left: 20,
             right: 20,
