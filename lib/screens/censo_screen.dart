@@ -11,12 +11,25 @@ class CensoTransporteScreen extends StatefulWidget {
 
 class _CensoTransporteScreenState extends State<CensoTransporteScreen> {
   final TextEditingController _nombreController = TextEditingController();
+  
+  // ¡NUEVO! Variables para controlar ambas categorías
+  String _categoriaSeleccionada = 'Transporte';
   String _tipoSeleccionado = 'Taxi Local';
+  
   double? _latitud;
   double? _longitud;
   bool _obteniendoUbicacion = false;
 
-  final List<String> _tiposTransporte = ['Taxi Local', 'Trufi Interprovincial', 'Micro', 'Bus'];
+  // ¡NUEVO! Lista de categorías principales
+  final List<String> _categoriasPrincipales = ['Transporte', 'Turismo', 'Comida', 'Hoteles'];
+
+  // ¡NUEVO! Diccionario con los subtipos dinámicos según la categoría
+  final Map<String, List<String>> _tiposPorCategoria = {
+    'Transporte': ['Taxi Local', 'Trufi Interprovincial', 'Micro', 'Bus', 'Moto Taxi'],
+    'Turismo': ['Plaza Principal', 'Parque', 'Museo', 'Iglesia', 'Monumento', 'Naturaleza'],
+    'Comida': ['Restaurante', 'Pensión', 'Comida Rápida', 'Mercado', 'Cafetería'],
+    'Hoteles': ['Hotel', 'Residencial', 'Alojamiento', 'Hostal'],
+  };
 
   Future<void> _obtenerUbicacionActual() async {
     setState(() => _obteniendoUbicacion = true);
@@ -39,68 +52,97 @@ class _CensoTransporteScreenState extends State<CensoTransporteScreen> {
     }
   }
 
-
-
   void _guardarEnBaseDeDatos() async {
-  if (_nombreController.text.isEmpty || _latitud == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Falta nombre o ubicación'), backgroundColor: Colors.orange)
-    );
-    return;
+    if (_nombreController.text.isEmpty || _latitud == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Falta nombre o ubicación'), backgroundColor: Colors.orange)
+      );
+      return;
+    }
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subiendo a la nube...'), backgroundColor: Colors.blue)
+      );
+
+      await FirebaseFirestore.instance.collection('paradas').add({
+        'nombre': _nombreController.text,
+        'tipo': _tipoSeleccionado,
+        'geopoint': GeoPoint(_latitud!, _longitud!),
+        'fechaRegistro': FieldValue.serverTimestamp(),
+        // ¡NUEVO! Ahora guardamos la categoría real elegida
+        'categoria': _categoriaSeleccionada, 
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('¡Registro guardado en la nube!'), backgroundColor: Colors.green)
+      );
+
+      _nombreController.clear();
+      setState(() {
+        _latitud = null;
+        _longitud = null;
+        // Opcionalmente podrías reiniciar las categorías aquí si quieres
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red)
+      );
+    }
   }
-
-  try {
-    // Referencia a la colección "paradas" en Firestore
-    await FirebaseFirestore.instance.collection('paradas').add({
-      'nombre': _nombreController.text,
-      'tipo': _tipoSeleccionado,
-      'geopoint': GeoPoint(_latitud!, _longitud!), // Formato nativo de Firestore para mapas
-      'fechaRegistro': FieldValue.serverTimestamp(), // Usa la hora del servidor
-      'categoria': 'Transporte', // Siguiendo tu enfoque de transporte, comida y turismo
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('¡Línea guardada en la nube!'), backgroundColor: Colors.green)
-    );
-
-    // Limpiar formulario
-    _nombreController.clear();
-    setState(() {
-      _latitud = null;
-      _longitud = null;
-    });
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red)
-    );
-  }
-}
 
   @override
   Widget build(BuildContext context) {
+    // Obtenemos la lista de subtipos dependiendo de la categoría seleccionada
+    List<String> opcionesTipo = _tiposPorCategoria[_categoriaSeleccionada]!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Censo de Líneas'), backgroundColor: Colors.black87, foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('Registro Punata 360'), backgroundColor: Colors.black87, foregroundColor: Colors.white),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: SingleChildScrollView( // Permite hacer scroll si el teclado tapa la pantalla
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Datos de la Línea', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Datos del Lugar / Servicio', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
-              TextField(
-                controller: _nombreController,
-                decoration: const InputDecoration(labelText: 'Nombre (Ej: Trans Arani)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.directions_car)),
+              
+              // 1. SELECTOR DE CATEGORÍA PRINCIPAL
+              DropdownButtonFormField<String>(
+                value: _categoriaSeleccionada,
+                decoration: const InputDecoration(labelText: 'Categoría Principal', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
+                items: _categoriasPrincipales.map((String categoria) {
+                  return DropdownMenuItem(value: categoria, child: Text(categoria));
+                }).toList(),
+                onChanged: (String? nuevoValor) {
+                  setState(() {
+                    _categoriaSeleccionada = nuevoValor!;
+                    // Al cambiar la categoría principal, el subtipo debe reiniciarse al primero de la nueva lista
+                    _tipoSeleccionado = _tiposPorCategoria[nuevoValor]!.first;
+                  });
+                },
               ),
               const SizedBox(height: 15),
+
+              // 2. SELECTOR DE SUB-TIPO DINÁMICO
               DropdownButtonFormField<String>(
                 value: _tipoSeleccionado,
-                decoration: const InputDecoration(labelText: 'Tipo de Servicio', border: OutlineInputBorder(), prefixIcon: Icon(Icons.merge_type)),
-                items: _tiposTransporte.map((String tipo) => DropdownMenuItem(value: tipo, child: Text(tipo))).toList(),
+                decoration: const InputDecoration(labelText: 'Tipo Específico', border: OutlineInputBorder(), prefixIcon: Icon(Icons.merge_type)),
+                items: opcionesTipo.map((String tipo) {
+                  return DropdownMenuItem(value: tipo, child: Text(tipo));
+                }).toList(),
                 onChanged: (String? nuevoValor) => setState(() => _tipoSeleccionado = nuevoValor!),
               ),
+              const SizedBox(height: 15),
+
+              // 3. NOMBRE DEL LUGAR
+              TextField(
+                controller: _nombreController,
+                decoration: const InputDecoration(labelText: 'Nombre (Ej: Pensión Doña Mary)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.edit)),
+              ),
+              
               const SizedBox(height: 30),
-              const Text('Ubicación de la Parada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Ubicación Exacta GPS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(15),
@@ -122,7 +164,7 @@ class _CensoTransporteScreenState extends State<CensoTransporteScreen> {
               ElevatedButton(
                 onPressed: _guardarEnBaseDeDatos,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
-                child: const Text('GUARDAR LÍNEA', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('GUARDAR REGISTRO', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               )
             ],
           ),

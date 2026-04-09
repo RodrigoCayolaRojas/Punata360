@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'screens/login_screen.dart'; 
-import 'package:firebase_core/firebase_core.dart'; // Importar
-import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'screens/login_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(); // Inicializar Firebase
@@ -40,41 +42,73 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
 
   List<Marker> _marcadores = [];
   List<Polyline> _rutas = [];
+  
+  // ¡NUEVO! Controla la conexión en vivo para poder cancelarla al cambiar de pestaña
+  StreamSubscription? _suscripcionFirebase; 
 
   @override
   void initState() {
     super.initState();
-    _cargarDatosMVP();
+    // Al iniciar, cargamos la categoría que está por defecto ('Transporte')
+    _cargarPinesPorCategoria(categoriaActiva);
   }
 
-  void _cargarDatosMVP() {
-    setState(() {
-      _marcadores = [
-        const Marker(
-          point: LatLng(-17.5450, -65.8345),
-          width: 40,
-          height: 40,
-          child: Icon(Icons.location_on, color: Colors.red, size: 40),
-        ),
-        const Marker(
-          point: LatLng(-17.5420, -65.8380),
-          width: 40,
-          height: 40,
-          child: Icon(Icons.directions_bus, color: Colors.blue, size: 40),
-        ),
-      ];
+  // ¡NUEVA FUNCIÓN! Reemplaza a _cargarDatosMVP
+  void _cargarPinesPorCategoria(String categoria) {
+    // 1. Cancelamos la búsqueda anterior
+    _suscripcionFirebase?.cancel();
 
-      _rutas = [
-        Polyline(
-          points: const [
-            LatLng(-17.5400, -65.8400),
-            LatLng(-17.5420, -65.8380),
-            LatLng(-17.5446, -65.8340),
-          ],
-          color: Colors.blue,
-          strokeWidth: 5.0,
-        ),
-      ];
+    // 2. Vaciamos el mapa inmediatamente al tocar el botón
+    setState(() {
+      _marcadores = [];
+    });
+
+    // 3. Vamos a Firebase a buscar solo los de la categoría elegida
+    _suscripcionFirebase = FirebaseFirestore.instance
+        .collection('paradas')
+        .where('categoria', isEqualTo: categoria)
+        .snapshots()
+        .listen((snapshot) {
+      
+      List<Marker> nuevosMarcadores = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data.containsKey('geopoint') && data['geopoint'] != null) {
+          GeoPoint geo = data['geopoint'];
+          
+          IconData icono = Icons.location_on;
+          Color colorIcono = Colors.red;
+
+          if (categoria == 'Transporte') {
+            icono = data['tipo'] == 'Taxi Local' ? Icons.local_taxi : Icons.directions_bus;
+            colorIcono = Colors.blueAccent;
+          } else if (categoria == 'Comida') {
+            icono = Icons.restaurant;
+            colorIcono = Colors.orange;
+          } else if (categoria == 'Turismo') {
+            icono = Icons.park;
+            colorIcono = Colors.green;
+          } else if (categoria == 'Hoteles') {
+            icono = Icons.hotel;
+            colorIcono = Colors.purple;
+          }
+
+          nuevosMarcadores.add(
+            Marker(
+              point: LatLng(geo.latitude, geo.longitude),
+              width: 45,
+              height: 45,
+              child: Icon(icono, color: colorIcono, size: 40),
+            ),
+          );
+        }
+      }
+
+      // 4. Dibujamos los nuevos pines
+      setState(() {
+        _marcadores = nuevosMarcadores;
+      });
     });
   }
 
@@ -89,27 +123,23 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
               initialCenter: punataCentro,
               initialZoom: 15.0,
             ),
-          children: [
+            children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.tuempresa.punataapp',
               ),
-              PolylineLayer(polylines: _rutas), // Mostramos rutas si hay
-              MarkerLayer(markers: _marcadores), // Siempre mostramos los marcadores activos
+              PolylineLayer(polylines: _rutas), 
+              MarkerLayer(markers: _marcadores), 
             ],
           ),
 
-          // =========================================================
-          // 2. NUEVA BARRA SUPERIOR (Buscador + Perfil)
-          // =========================================================
+          // 2. BARRA SUPERIOR
           Positioned(
-         
             top: 50,
             left: 20,
             right: 20,
             child: Row(
               children: [
-                // BUSCADOR (Toma el espacio restante con Expanded)
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -136,9 +166,7 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10), // Espacio entre buscador y perfil
-                
-                // BOTÓN DE PERFIL (Para acceder al Login / Censo)
+                const SizedBox(width: 10),
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -199,6 +227,8 @@ class _MapaPunataScreenState extends State<MapaPunataScreen> {
         setState(() {
           categoriaActiva = texto;
         });
+        // ¡NUEVO! Aquí es donde llamamos a Firebase para limpiar y traer los datos de la nueva pestaña
+        _cargarPinesPorCategoria(texto); 
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
